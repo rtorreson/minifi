@@ -1,0 +1,47 @@
+#!/bin/bash
+
+set -e
+
+# Atualiza repositórios e instala dependências básicas
+sudo apt update
+sudo apt install -y openjdk-17-jre-headless curl unzip
+
+# Define variáveis
+MINIFI_VERSION="1.6.0"
+MINIFI_URL="https://archive.apache.org/dist/nifi/minifi/$MINIFI_VERSION/minifi-${MINIFI_VERSION}-bin.zip"
+INSTALL_DIR="/opt/minifi"
+USER="minifi"
+
+# Cria usuário para rodar minifi
+if ! id -u $USER >/dev/null 2>&1; then
+  sudo useradd -r -s /bin/false $USER
+fi
+
+# Baixa e instala MiNiFi
+curl -L $MINIFI_URL -o /tmp/minifi.zip
+sudo unzip -o /tmp/minifi.zip -d /opt/
+sudo mv /opt/minifi-${MINIFI_VERSION} $INSTALL_DIR
+sudo chown -R $USER:$USER $INSTALL_DIR
+rm /tmp/minifi.zip
+
+# Cria serviço systemd para MiNiFi
+sudo tee /etc/systemd/system/minifi.service > /dev/null <<EOF
+[Unit]
+Description=Apache MiNiFi
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+ExecStart=$INSTALL_DIR/bin/minifi.sh run
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Dá permissão e habilita serviço
+sudo systemctl daemon-reload
+sudo systemctl enable --now minifi.service
+
+echo "Apache MiNiFi instalado e serviço iniciado."
